@@ -86,7 +86,7 @@ kubectl apply -f keda/spark-scaledobject.yaml
 ## 📌 Utilisation du Makefile
 
 Ce projet inclut un **Makefile** qui facilite la gestion de l'infrastructure Kubernetes et des différents composants du système de traitement de données.  
-Au lieu de taper des commandes `kubectl`, `docker` ou d’exécuter des scripts séparément, le Makefile centralise tout et **réduit la complexité**, ce qui permet à l'équipe de déployer, monitorer et mettre à jour le projet plus rapidement et de manière plus fiable.
+Au lieu de taper des commandes `kubectl`, `docker` ou d’exécuter des scripts séparément, le Makefile centralise tout et **réduit la complexité**.
 
 ### Commandes principales
 
@@ -94,22 +94,24 @@ Déployer l’infrastructure complète :
 
 ```bash
 make deploy
+```
 
 Voir les logs des composants :
 
+```bash
 make logs-spark   # Affiche les logs des pods Spark
 make logs-api     # Affiche les logs de l’API Swagger
+```
 
 Vérifier le status des pods et services :
 
+```bash
 make status
-
-Accéder rapidement aux services via port-forward :
-
-make forward-api        # API Swagger sur localhost:8080
-make forward-rabbitmq   # Interface RabbitMQ sur localhost:15672
-make forward-grafana    # Grafana sur localhost:3000
+```
 
 Voir toutes les commandes disponibles dans le Makefile :
 
+```bash
 make help
+```
+---
