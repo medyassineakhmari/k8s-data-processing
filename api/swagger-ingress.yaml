@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: swagger-api-ingress
+  namespace: data-processing
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"  # Si tu utilises cert-manager
+spec:
+  ingressClassName: nginx  # Adapter selon ton ingress controller
+  rules:
+  - host: api.your-domain.com  # À REMPLACER par ton domaine
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: swagger-api
+            port:
+              number: 8080
+  tls:
+  - hosts:
+    - api.your-domain.com
+    secretName: swagger-api-tls

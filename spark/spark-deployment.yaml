@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spark-processor
+  namespace: data-processing
+  labels:
+    app: spark-processor
+spec:
+  replicas: 2  # Nombre initial, KEDA va le gérer
+  selector:
+    matchLabels:
+      app: spark-processor
+  template:
+    metadata:
+      labels:
+        app: spark-processor
+    spec:
+      serviceAccountName: spark
+      containers:
+      - name: spark-app
+        # TON IMAGE ICI - À remplacer par l'image que tes collègues vont créer
+        image: akhmyassine/spark-processor:latest
+        imagePullPolicy: Always
+        envFrom:
+        - configMapRef:
+            name: spark-config
+        env:
+        - name: RABBITMQ_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-secret
+              key: rabbitmq-username
+        - name: RABBITMQ_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-secret
+              key: rabbitmq-password
+        - name: MONGODB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-secret
+              key: mongodb-username
+        - name: MONGODB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-secret
+              key: mongodb-password
+        ports:
+        - name: spark-ui
+          containerPort: 4040
+        - name: metrics
+          containerPort: 8080
+        resources:
+          requests:
+            cpu: 250m
+            memory: 512Mi
+          limits:
+            cpu: 500m
+            memory: 1Gi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3

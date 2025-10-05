@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: swagger-api
+  namespace: data-processing
+  labels:
+    app: swagger-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: swagger-api
+  template:
+    metadata:
+      labels:
+        app: swagger-api
+    spec:
+      containers:
+      - name: api
+        # TON IMAGE ICI - À remplacer par l'image de ton API Swagger
+        image: akhmyassine/swagger-api:latest
+        imagePullPolicy: Always
+        env:
+        - name: MONGODB_HOST
+          value: "mongodb.data-processing.svc.cluster.local"
+        - name: MONGODB_PORT
+          value: "27017"
+        - name: MONGODB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-secret
+              key: mongodb-username
+        - name: MONGODB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-secret
+              key: mongodb-password
+        - name: MONGODB_DATABASE
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-secret
+              key: mongodb-database
+        - name: API_PORT
+          value: "8080"
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 250m
+            memory: 512Mi

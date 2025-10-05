@@ -1,0 +1,50 @@
+# ServiceMonitor pour RabbitMQ
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: rabbitmq-metrics
+  namespace: data-processing
+  labels:
+    app: rabbitmq
+spec:
+  selector:
+    matchLabels:
+      app: rabbitmq
+  endpoints:
+  - port: prometheus
+    interval: 30s
+    path: /metrics
+---
+# ServiceMonitor pour Spark
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: spark-metrics
+  namespace: data-processing
+  labels:
+    app: spark-processor
+spec:
+  selector:
+    matchLabels:
+      app: spark-processor
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+---
+# ServiceMonitor pour l'API Swagger
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: swagger-api-metrics
+  namespace: data-processing
+  labels:
+    app: swagger-api
+spec:
+  selector:
+    matchLabels:
+      app: swagger-api
+  endpoints:
+  - port: http
+    interval: 30s
+    path: /metrics
