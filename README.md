@@ -82,8 +82,3 @@ Le ScaledObject KEDA scale Spark selon:
 ```bash
 kubectl apply -f keda/spark-scaledobject.yaml
 ```
----
-
----
-
-**Créé pour le projet de système distribué - Équipe DevOps** 🚀
