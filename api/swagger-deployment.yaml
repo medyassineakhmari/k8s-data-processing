@@ -17,7 +17,6 @@ spec:
     spec:
       containers:
       - name: api
-        # TON IMAGE ICI - À remplacer par l'image de ton API Swagger
         image: akhmyassine/swagger-api:latest
         imagePullPolicy: Always
         env:
