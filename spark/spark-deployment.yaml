@@ -18,7 +18,6 @@ spec:
       serviceAccountName: spark
       containers:
       - name: spark-app
-        # TON IMAGE ICI - À remplacer par l'image que tes collègues vont créer
         image: akhmyassine/spark-processor:latest
         imagePullPolicy: Always
         envFrom:
