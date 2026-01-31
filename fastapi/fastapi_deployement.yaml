@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: python-fastapi
-        image: rabii10/python_fastapi:v1.1
+        image: rabii10/python_fastapi:v2
         ports:
         - containerPort: 8000
         env:

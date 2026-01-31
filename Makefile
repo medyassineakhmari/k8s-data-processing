@@ -24,6 +24,7 @@ start-minikube:
 
 # ------- Kafka (contrôleurs -> brokers) -------
 start-kafka:
+	$(K) apply -f $(KAFKA_DIR)/jmx-config.yaml
 	$(K) apply -f $(KAFKA_DIR)/kafka_controller_statefulset.yaml
 	$(K) wait --for=condition=ready pod -l app=kafka-controller --timeout=300s
 	$(K) apply -f $(KAFKA_DIR)/kafka_broker_statefulset.yaml

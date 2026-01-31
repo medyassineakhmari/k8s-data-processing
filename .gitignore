@@ -1,2 +1,10 @@
+node_modules/
+**/node_modules/
 ﻿.venv
 mongodb-secret.yaml
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+gcp-key.json
+ansible/id_rsa_gcp
