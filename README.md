@@ -1,193 +1,286 @@
-# Projet Systeme Distribué Pour le Traitement des Données
-Le thème de projet : **Détection d’attaques de cybersécurité en temps réel** 
+# Projet Système Distribué : Détection d’attaques de cybersécurité en temps réel
 
-## Lancement de projet en local sur Minikube
-en utilisant le makefile en execute les étapes suivantes:
-1. lancer minikube :
-```
-make start-minikube
-```
-> si vous avez deja une contenaire minikube deja initié, il est recommandé de supprimer le container et le recrée pour n'avoir plus des problème vers la suite à cause des difference entre les version de projet.
+Ce projet implémente un pipeline de traitement de données en streaming pour détecter des menaces de cybersécurité à l'aide de Spark Streaming, Kafka, et un modèle de classification Random Forest.
+## Architecture Système Distribuée en Cloud
 
-2. lancer les pods de kafka:
-```
-make start-kafka
-```
-
-3. lancer les pods de spark:
-
-Avant de lancer spark, il faut assurer qu'un fichier `mongodb-secret.yaml` existe dans le dossier mongodb pour avoir les données nécessaire pour se connecter à la base de données.
-> NOTE : Le fichier sera partager séparement.
-```
-make start-spark-pods
-```
-> Note: Il se peut que certain pods ne se lance plus et reste bloquer dans la phase de creation. Vous pouvez toujours verifier ça avec `make status` et trouver le pods avec status `ContainerCreating`. Puis le supprimer en utilisant `Kubectl delete -f spark_k8/spark_client_statefulset.yaml` par exemple. Enfin relancer le make command associé.
-
-4. lancer la base de données mongodb
-```
-make start-mongodb
-```
-
-5. lancer le pod de producer :
-```
-make start-python-producer
-```
-> Note: Maintenant juste avec cette command le pod de producer est crée puis lancé directement et il commence le streaming des données vers Kafka.
-
-6. lancer les pods de spark:
-```
-make submit-spark-job
-```
-> Note: il se peut qu'un erreur se produit qui est en relation avec le fichier spark_submit.sh. sur VScode en ouvrant se fichier, assurer que le fichier est en encodage LF et pas CRLF (verifier sur la barre de vscode au dessous à droite).
-
-> Note: vous pouvez à chaque étape verifier le status de tous le cluster en utilisant : 
-```
-make status
-```
-Vous pouvez voir le status des pods , les PVC et les services.
-
-7. lancer fastapi avec ingress
-```
-make start-fastapi
-```
-> to see the swagger page in your browser, execute in a seperate terminal `minikube tunnel` and keep it open, then go to `http://localhost/docs` and it should be working.
-
-8. lancer le monitoring de prometheus: 
-```
-make setup-monitoring
-```
-> ATTENTION: il faut vérifier si vous avez `helm` installé sur votre système ou pas.
-
-Si vous sur windows ou linux, installer suivant ce guide: [helm.sh](https://helm.sh/docs/intro/install/#from-apt-debianubuntu)
-
-9. acceder l'interface de monitoring de Grafana: 
-```
-make access-grafana
-```
-
-## Suppression des elements de cluster
-1. Si vous vouler supprimer juste les pods:
-```
-make delete-resources
+```mermaid
+graph TB
+    subgraph "Local Machine"
+        LocalUser[" Machine Locale"]
+        Dashboard[" Dashboard Frontend<br/>React + Vite<br/>Port: 5173"]
+    end
+    
+    subgraph "GCP Network"
+        subgraph "Gateway (VM)"
+            Gateway[" Gateway<br/>Jump Server"]
+        end
+        
+        subgraph "Kubernetes Cluster"
+            subgraph "Data Ingestion"
+                Producer[" Python Producer<br/>Simulation de Trafic"]
+                Kafka[" Apache Kafka<br/>Message Broker<br/>Topics: demo"]
+            end
+            
+            subgraph "Stream Processing"
+                SparkMaster[" Spark Master<br/>Orchestrateur"]
+                SparkWorkers[" Spark Workers<br/>1-10 replicas<br/>HPA: CPU-based"]
+                SparkJob[" Spark Streaming Job<br/>Détection Anomalies<br/>Modèle Random Forest"]
+            end
+            
+            subgraph "Data Storage"
+                MongoDB[" MongoDB<br/>cybersecurity_db<br/>Collection: predictions"]
+            end
+            
+            subgraph "API & Visualization"
+                FastAPI[" FastAPI Server<br/>REST API<br/>Port: 8000<br/>HPA: Traffic-based"]
+            end
+            
+            subgraph "Monitoring Stack"
+                Prometheus["Prometheus<br/>Collecte Métriques<br/>Port: 9090"]
+                Grafana["Grafana<br/>Dashboard<br/>Port: 3000"]
+            end
+        end
+    end
+    
+    LocalUser -->|SSH Tunnel| Gateway
+    Gateway -->|SSH| SparkMaster
+    LocalUser -->|REST API| FastAPI
+    
+    Producer -->|Envoie Logs| Kafka
+    Kafka -->|Consume| SparkJob
+    SparkMaster -->|Orchestrate| SparkWorkers
+    SparkJob -->|Utilise| SparkWorkers
+    SparkJob -->|Prédictions| MongoDB
+    
+    FastAPI -->|Query| MongoDB
+    Dashboard -->|HTTP Requests| FastAPI
+    
+    Prometheus -->|Scrape Metrics| SparkWorkers
+    Prometheus -->|Scrape Metrics| FastAPI
+    Prometheus -->|Scrape Metrics| Kafka
+    Grafana -->|Visualize| Prometheus
+    
+    LocalUser -->|Port Forward 8000| FastAPI
+    LocalUser -->|Port Forward 3000| Grafana
+    LocalUser -->|Port Forward 9090| Prometheus
 ```
 
-2. Si vous voulez supprimer tous (pods, PVCs, services)
-```
-make nuke
-```
+## Flux de Données
 
-## Les éléments existant de Cluster
-### Producer: 
-- Deployement:
-    - une seul replica
-    - utilise l'image docker ``rabii10/python_producer:v4.2.2`` (contient l'app python et les données de dataset)
-- configuration possible depuis ``producer_deployment.yaml`` :
-    - ``BOOTSTRAP_SERVERS`` (pour se connecter à kafka quelque soit le nombre des brokers de kafka)
-    - ``TOPIC`` (le nom de topic de kafka)
-    - ``MSG_RATE`` (le taux des lignes de dataset à envoyer par seconde)
-    - ``BURST_PROB`` (la Probabilité d'avoir des pics de taux des messages envoy", pour simuler un système réel avec des variation soudaine de taux des logs reçus par kafka)
-    - ``BURST_POWER`` (la puissance de ces augmentations soudaine de taux des logs envoyé, une valeur plus petit > des pics de MSG_RATE plus massives avec valeur minimum de 1.1)
-> Note: si votre système crash à cause des gros volume des message, réduire le MSG_RATE à 5 ou 10.
+```mermaid
+sequenceDiagram
+    participant Producer as Python Producer
+    participant Kafka as Kafka Cluster
+    participant Spark as Spark Streaming
+    participant Model as ML Model<br/>Random Forest
+    participant MongoDB as MongoDB
+    participant FastAPI as FastAPI
+    participant User as Utilisateur
+    
+    Producer->>Kafka: Envoie Logs Réseau<br/>(Topic: demo)
+    Kafka->>Spark: Consume Messages
+    Spark->>Model: Applique Prédiction
+    Model->>Spark: Résultat Classification
+    Spark->>MongoDB: Écrit Prédiction<br/>foreachBatch
+    MongoDB->>FastAPI: Requête Données
+    FastAPI->>User: API REST JSON<br/>
+```
+##  Déploiement sur Google Cloud Platform (GCP)
+
+Le déploiement s'effectue en trois phases : provisionnement de l'infrastructure, configuration logicielle, et lancement de l'application.
+
+Note : Dans ce projet, l'adresse IP du Master est fixée à `10.240.0.10
+
+### Partie 1 : Infrastructure & Configuration (Local)
+
+1. Déploiement de l'infrastructure (Terraform) :
+   Prépare les machines virtuelles (VM) sur GCP.
+   ```bash
+   cd terraform
+   terraform init
+   terraform plan
+   terraform apply  # Tapez 'yes' pour confirmer
+   ```
+   *Note : Notez les IPs affichées à la fin (Gateway & Master).*
+
+2. Configuration des machines (Ansible) :
+   Installe Docker, Kubernetes (Kubeadm), Helm et les outils réseaux.
+   ```bash
+   cd ../ansible
+   # Mettez à jour inventory.ini avec les IPs reçues
+   ansible-playbook -i inventory.ini playbook.yml
+   ```
+
+3. Nettoyage des clés SSH :
+   Pour éviter les erreurs d'identification après une réinstallation :
+   ```bash
+   ssh-keygen -f "$HOME/.ssh/known_hosts" -R "10.240.0.10"
+   ```
+
+### Partie 2 : Transfert et Connexion au Master
+
+1. Transférer le projet vers le Master :
+   ```bash
+   rsync -avz -e 'ssh -i ansible/id_rsa_gcp -o ProxyCommand="ssh -W %h:%p -q ubuntu@<IP_GATEWAY> -i ansible/id_rsa_gcp"' \
+   --exclude 'terraform' --exclude 'ansible' --exclude '.git' \
+   . ubuntu@10.240.0.10:~/project
+   ```
+
+2. Se connecter au Master :
+   ```bash
+   ssh -i ansible/id_rsa_gcp -o ProxyCommand="ssh -W %h:%p -q ubuntu@<IP_GATEWAY> -i ansible/id_rsa_gcp" ubuntu@10.240.0.10
+   cd project
+   ```
+
+### Partie 3 : Déploiement Applicatif (Ordre d'exécution)
+
+Une fois sur le Master, exécutez les commandes make dans cet ordre précis :
+
+1. Base de données :
+   ```bash
+   kubectl apply -f mongodb/mongodb-secret.yaml
+   make start-mongodb
+   ```
+2. Infrastructure de Message :
+   ```bash
+   make start-kafka
+   ```
+
+3. Traitement Spark :
+   ```bash
+   make start-spark-pods
+   ```
+
+4. Auto-scaling (HPA) :
+   ```bash
+   make start-hpa
+   ```
+
+5. Injection des données :
+   ```bash
+   make start-python-producer
+   ```
+
+6. Lancement du Job de détection :
+   ```bash
+   make submit-spark-job
+   ```
+
+   *Note : Assurez-vous que spark_submit.sh est en encodage LF.*
+
+7. Interface de consultation :
+   ```bash
+   make start-fastapi
+   ```
+
+8. Stack de Surveillance :
+   ```bash
+   make setup-monitoring
+   ```
+
+9. Dashboard Frontend (sur la machine locale) :
+   ```bash
+   cd dashboard_frontend
+   npm install
+   npm run dev
+   ```
+   Accès : http://localhost:5173
+
+10. Stack de Surveillance :
+    ```bash
+    make setup-monitoring
+    ```
 
 ---
----
-### Kafka:
-#### Brokers
-- Statefulset
-    - replica : 3
-    - utilise l'image : ``apache/kafka:3.8.0``
-    - PVC de 1Gi pour chaque broker
-- Service
-    - pas d'IP externe
 
-#### Controllers 
-- Statefulset
-    - replica : 3
-    - utilise l'image : ``apache/kafka:3.8.0``
-    - PVC de 1Gi pour chaque controller
-- Service
-    - pas d'IP externe
+## Accès aux Interfaces & Métriques
 
-#### Job création de topic
-- Job
-- créer un topic avec les configs suivantes:
-    - Topic name : demo
-    - partitions : 6
-    - replication factor : 3
+Depuis votre machine locale, utilisez les tunnels SSH suivants pour accéder aux interfaces privées du cluster.
 
----
----
-### Spark:
-#### Dossier spark_code:
-ce dossier contient:
-- Les éléments qui ont aidé à entraîner le modèle de classification multiclasse (Random Forest) en utilisant PySpark, avec les fichiers exportés du modèle entraîné, ainsi que le fichier ``spark_job.py`` qui va être exécuté sur Spark.
-- Le Dockerfile nécessaire pour les pods Spark afin de faire le traitement des données reçues de Kafka.
+### 1. Dashboard Frontend (Utilisateur Final)
+Le dashboard React/Vite s'exécute sur votre machine locale et communique avec l'API FastAPI :
+```bash
+cd dashboard_frontend
+npm install
+npm run dev
+```
+Accès : http://localhost:5173
 
-#### Spark_k8
-##### Client
-- Statefulset
-    - replica : 1
-    - utilise l'image : ``rabii10/myspark:v5.3``
-- Service
-    - pas d'IP externe
+Le dashboard consomme l'API FastAPI déployée sur le cluster pour afficher :
+- Les prédictions en temps réel
+- Les statistiques de détection
+- Les menaces identifiées
 
-##### Master
-- Statefulset
-    - replica : 1
-    - utilise l'image : ``rabii10/myspark:v5.3``
-- Service
-    - cluster IP existe
+### 2. Monitoring (Grafana & Prometheus)
+* Grafana (Visualisation) :
+    ```bash
+    ssh -i ./id_rsa_gcp -L 3000:localhost:3000 -o ProxyCommand="ssh -W %h:%p -q ubuntu@<IP_GATEWAY> -i ./id_rsa_gcp" ubuntu@10.240.0.10 "kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80"
+    ```
+    Accès : http://localhost:3000 (admin / admin)
 
-##### Worker
-- Statefulset
-    - replica : 1
-    - utilise l'image : ``rabii10/myspark:v5.3``
-- Service
-    - cluster IP existe
+* Prometheus (Requêtes) :
+    ```bash
+    ssh -i ./id_rsa_gcp -L 9090:localhost:9090 -o ProxyCommand="ssh -W %h:%p -q ubuntu@<IP_GATEWAY> -i ./id_rsa_gcp" ubuntu@10.240.0.10 "kubectl port-forward -n monitoring svc/kube-prometheus-stack-prometheus 9090:9090"
+    ```
+    Accès : http://localhost:9090
 
----
----
-### Monitoring:
-Monitoring avec prometheus et affichage avec Grafana.
+### 2. API de Consultation (FastAPI)
+```bash
+ssh -i ./id_rsa_gcp -L 8000:localhost:8000 -o ProxyCommand="ssh -W %h:%p -q ubuntu@<IP_GATEWAY> -i ./id_rsa_gcp" ubuntu@10.240.0.10 "kubectl port-forward svc/fastapi-service 8000:8000"
+```
+Accès : http://localhost:8000/docs
 
-- Prometheus : collecte et stockage des métriques
-- Grafana : visualisation des métriques et tableaux de bord
-- Alertmanager : gestion des alertes
-- Node Exporter : métriques au niveau du système
-- Kube State Metrics : métriques du cluster Kubernetes
-
----
----
-### Database:
-- Statefulset
-    - replica : 1
-    - utilise l'image : ``mongo:7.0``
-- Service
-    - pas d'IP externe
-- URI: `mongodb://username:password@mongodb-service:27017`
-- Database: `cybersecurity_db`
-- Collection: `predictions`
-- Driver: PyMongo 4.x (pre-installed in spark-base Docker image)
-- Batch Mode: `foreachBatch` callback (automatic per micro-batch)
-> Note: le dossier de mongodb doit contenir le fichier `mongodb-secret.yaml` avec le structure suivant: 
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: mongodb-secret
-type: Opaque
-data:
-  username: # encodé en base64
-  password: # encodé en base64
-  url: # mongodb://username:password@mongodb-service:27017/ encodé en base64
+### Dépannage des ports
+Si un port est déjà occupé sur votre machine ou sur le master :
+```bash
+sudo lsof -i :3000  # ou 9090, 8000
+pkill -f "kubectl port-forward"
 ```
 
 ---
+
+## Détails des Composants
+
+### Dashboard Frontend
+- **Framework** : React 18 + Vite
+- **Localisation** : Machine locale (http://localhost:5173)
+- **Fonctionnalités** :
+  - Visualisation en temps réel des prédictions
+  - Affichage des statistiques de détection d'attaques
+  - Interface utilisateur moderne avec Tailwind CSS
+  - Communication avec FastAPI via REST API
+- **Technologies** : React, Vite, Tailwind CSS, Axios/Fetch API
+- **Build** : 
+  ```bash
+  npm run build  # Production build
+  npm run preview  # Aperçu de la build
+  ```
+
+### Auto-scaling (HPA)
+- Spark Workers : Scale automatiquement entre 1 et 10 réplicas selon la charge CPU.
+- FastAPI : Scale selon le trafic de consultation.
+- Surveillance : make status-hpa ou make watch-scaling.
+
+### Producer Python
+- Image : rabii10/python_producer:v4.2.2
+- Simule des variations de trafic via MSG_RATE et BURST_POWER.
+- Envoie les logs réseau au topic Kafka demo.
+
+### Spark Streaming
+- Image : rabii10/myspark:v5.3
+- Consomme depuis Kafka, applique le modèle ML et écrit dans MongoDB.
+- Utilise le mode foreachBatch pour la persistence.
+
+### MongoDB
+- Base : cybersecurity_db | Collection : predictions.
+- Vérifier les stats : make query-stats.
+- Vérifier les attaques : make query-attacks.
+
 ---
-## Contributing
 
-Pour les devs :
--Pour chaque nouvelle feature, créez une nouvelle branche et nommez-la avec le nom de la feature, puis créez une merge request vers dev pour être évaluée.
+## Maintenance & Nettoyage
 
-Pour les devops :
-- La branche dev est la branche principale pour toutes les versions finales de développement. Vous pouvez tirer les derniers changements de cette branche vers votre branche devops, mais pas l'inverse.
+1. Vérifier l'état global : `make status`
+2. Voir la consommation réelle : `make metrics`
+3. Supprimer les ressources : `make delete-resources`
+4. Reset complet (Purge) : `make nuke`
